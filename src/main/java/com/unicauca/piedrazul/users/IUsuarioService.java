@@ -1,11 +1,9 @@
 package com.unicauca.piedrazul.users;
 
 
-
-
+import com.unicauca.piedrazul.shared.RolUsuario;
 import com.unicauca.piedrazul.users.dto.UsuarioDTO;
 import com.unicauca.piedrazul.users.internal.domain.entity.Usuario;
-import com.unicauca.piedrazul.shared.RolUsuario;
 
 import java.util.List;
 
