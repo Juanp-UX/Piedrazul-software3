@@ -1,10 +1,10 @@
 package com.unicauca.piedrazul.scheduling.internal.application.listener;
 
-import com.unicauca.piedrazul.users.events.ProfesionalCreadoEvent;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.DisponibilidadSemanal;
 import com.unicauca.piedrazul.scheduling.internal.domain.repository.DisponibilidadSemanalRepository;
-import org.springframework.modulith.events.ApplicationModuleListener;
+import com.unicauca.piedrazul.users.events.ProfesionalCreadoEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalTime;
