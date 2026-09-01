@@ -1,0 +1,40 @@
+package com.unicauca.piedrazul.scheduling.internal.domain.repository;
+
+
+import com.unicauca.piedrazul.scheduling.internal.domain.entity.Cita;
+import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.time.ZonedDateTime;
+import java.util.List;
+
+public interface CitaRepository extends JpaRepository<Cita, Long> {
+    List<Cita> findByPacienteId(Long pacienteId);
+    List<Cita> findByProfesionalId(Long profesionalId);
+    List<Cita> findByPacienteIdAndEstado(Long pacienteId, EstadoCita estado);
+    List<Cita> findByProfesionalIdAndFechaHoraBetween(Long profesionalId, ZonedDateTime inicio, ZonedDateTime fin);
+
+    // -----------------------------------------------------------------------
+    // Replaces the removed existsByProfesionalIdAndFechaHora.
+    //
+    // Returns only PROGRAMADA rows in the given window so the service can do
+    // an accurate overlap check in Java.  Cancelled/completed rows are
+    // excluded, which also fixes the "cancelled slot permanently blocked" bug.
+    // The caller widens the window by the maximum possible slot duration so
+    // that a long appointment starting just before the window cannot be missed.
+    // -----------------------------------------------------------------------
+    List<Cita> findByProfesionalIdAndEstadoAndFechaHoraBetween(
+            Long profesionalId,
+            EstadoCita estado,
+            ZonedDateTime inicio,
+            ZonedDateTime fin);
+
+    // -----------------------------------------------------------------------
+    // FIX CRÍTICO: reemplaza findAll().stream().filter().count() en
+    // CitaServiceImpl.contarCitasPorEstado().
+    // Spring Data genera un COUNT(*) WHERE estado = ? — una sola query SQL,
+    // sin carga de entidades en heap, O(1) en memoria independientemente del
+    // tamaño de la tabla.
+    // -----------------------------------------------------------------------
+    long countByEstado(EstadoCita estado);
+}
