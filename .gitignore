@@ -32,4 +32,19 @@ build/
 ### VS Code ###
 .vscode/
 
+### Backend (Maven / Java) ###
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+!backend/**/src/main/**/target/
+!backend/**/src/test/**/target/
+backend/HELP.md
+
+### Frontend (Angular) ###
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+### OS ###
+.DS_Store
+
 piedrazul.iml
