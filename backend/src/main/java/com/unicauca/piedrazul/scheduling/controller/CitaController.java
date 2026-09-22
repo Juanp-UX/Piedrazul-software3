@@ -5,6 +5,7 @@ import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -45,17 +46,27 @@ public class CitaController {
         return ResponseEntity.ok(agendamientoFacade.buscarCitaPorId(id));
     }
 
+    /**
+     * pacienteId es el Usuario.id del paciente. Antes cualquier usuario
+     * autenticado podía ver las citas de cualquier paciente cambiando el
+     * id en la URL; ahora solo el propio paciente, un agendador o un
+     * administrador pueden hacerlo.
+     */
     @GetMapping("/paciente/{pacienteId}")
+    @PreAuthorize("#pacienteId == authentication.principal or hasAnyRole('AGENDADOR','ADMINISTRADOR')")
     public ResponseEntity<List<CitaDTO>> listarPorPaciente(@PathVariable Long pacienteId) {
         return ResponseEntity.ok(agendamientoFacade.listarCitasPorPaciente(pacienteId));
     }
 
+    /** profesionalId es el Usuario.id del profesional; misma protección que arriba. */
     @GetMapping("/profesional/{profesionalId}")
+    @PreAuthorize("#profesionalId == authentication.principal or hasAnyRole('AGENDADOR','ADMINISTRADOR')")
     public ResponseEntity<List<CitaDTO>> listarPorProfesional(@PathVariable Long profesionalId) {
         return ResponseEntity.ok(agendamientoFacade.listarCitasPorProfesional(profesionalId));
     }
 
     @GetMapping("/profesional/{profesionalId}/fecha")
+    @PreAuthorize("#profesionalId == authentication.principal or hasAnyRole('AGENDADOR','ADMINISTRADOR')")
     public ResponseEntity<List<CitaDTO>> listarPorProfesionalYFecha(
             @PathVariable Long profesionalId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
@@ -74,18 +85,24 @@ public class CitaController {
     }
 
     // ── Transiciones de estado ────────────────────────────────────────────────
+    // Gestión operativa de citas: reservada a agendador/administrador.
+    // (Cancelar la propia cita como paciente puede habilitarse más adelante
+    // con una regla adicional que compare el pacienteId de la cita.)
 
     @PatchMapping("/{id}/cancelar")
+    @PreAuthorize("hasAnyRole('AGENDADOR','ADMINISTRADOR')")
     public ResponseEntity<CitaDTO> cancelar(@PathVariable Long id) {
         return ResponseEntity.ok(agendamientoFacade.cancelarCita(id));
     }
 
     @PatchMapping("/{id}/completar")
+    @PreAuthorize("hasAnyRole('AGENDADOR','ADMINISTRADOR')")
     public ResponseEntity<CitaDTO> completar(@PathVariable Long id) {
         return ResponseEntity.ok(agendamientoFacade.completarCita(id));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('AGENDADOR','ADMINISTRADOR')")
     public ResponseEntity<CitaDTO> actualizar(
             @PathVariable Long id,
             @RequestBody CitaDTO dto) {
@@ -95,6 +112,7 @@ public class CitaController {
     // ── Conteo ────────────────────────────────────────────────────────────────
 
     @GetMapping("/contar")
+    @PreAuthorize("hasAnyRole('AGENDADOR','ADMINISTRADOR')")
     public ResponseEntity<Long> contarPorEstado(@RequestParam EstadoCita estado) {
         return ResponseEntity.ok(agendamientoFacade.contarCitasPorEstado(estado));
     }

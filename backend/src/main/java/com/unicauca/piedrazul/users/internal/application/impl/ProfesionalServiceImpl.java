@@ -68,10 +68,17 @@ public class ProfesionalServiceImpl implements IProfesionalService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * "id" aquí es el Usuario.id del profesional, igual que en listarActivos()
+     * y en todo el módulo scheduling (Cita.profesionalId, DisponibilidadSemanal,
+     * etc.). Antes se buscaba por el id propio de la tabla "profesionales"
+     * (profesionalRepository.findById), inconsistente con el id que el propio
+     * toDTO() devuelve (Usuario.id) y con el resto del sistema.
+     */
     @Override
     public ProfesionalDTO buscarPorId(Long id) {
 
-        return profesionalRepository.findById(id)
+        return profesionalRepository.findByUsuarioId(id)
                 .map(this::toDTO)
                 .orElseThrow(() -> new UsuarioNoEncontradoException(
                         "Profesional no encontrado: " + id));

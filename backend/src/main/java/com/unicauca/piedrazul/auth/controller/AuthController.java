@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -39,8 +40,14 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Logout de todas las sesiones del usuario */
+    /**
+     * Logout de todas las sesiones del usuario.
+     * Solo el propio usuario o un administrador pueden invocarlo:
+     * antes cualquiera podía cerrar la sesión de cualquier otro usuario
+     * (el endpoint era público y no validaba identidad).
+     */
     @PostMapping("/logout-all/{usuarioId}")
+    @PreAuthorize("#usuarioId == authentication.principal or hasRole('ADMINISTRADOR')")
     public ResponseEntity<Void> logoutAll(@PathVariable Long usuarioId) {
         authService.logoutAll(usuarioId);
         return ResponseEntity.noContent().build();
@@ -56,8 +63,14 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    /** Cambio de contraseña */
+    /**
+     * Cambio de contraseña.
+     * Solo el propio usuario o un administrador pueden cambiarla: antes,
+     * cualquier usuario autenticado podía cambiar la contraseña de otro
+     * usuario con solo variar el {usuarioId} del path.
+     */
     @PutMapping("/password/{usuarioId}")
+    @PreAuthorize("#usuarioId == authentication.principal or hasRole('ADMINISTRADOR')")
     public ResponseEntity<Void> cambiarPassword(
             @PathVariable Long usuarioId,
             @Valid @RequestBody CambioPasswordRequest request) {
