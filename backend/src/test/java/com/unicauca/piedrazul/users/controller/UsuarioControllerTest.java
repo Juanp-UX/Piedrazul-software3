@@ -2,6 +2,7 @@ package com.unicauca.piedrazul.users.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.unicauca.piedrazul.auth.SecurityConfig;
+import com.unicauca.piedrazul.auth.internal.security.JwtUtil;
 import com.unicauca.piedrazul.auth.security.JwtAuthenticationFilter;
 import com.unicauca.piedrazul.shared.RolUsuario;
 import com.unicauca.piedrazul.shared.test.JwtAuthTestUtils;
@@ -46,6 +47,11 @@ class UsuarioControllerTest {
 
     @MockitoBean
     private IUsuarioService usuarioService;
+
+    // Ver AuthControllerTest: JwtAuthenticationFilter necesita un JwtUtil
+    // real; sin mockearlo aquí, el ApplicationContext no arranca.
+    @MockitoBean
+    private JwtUtil jwtUtil;
 
     private UsuarioDTO usuarioDTO(Long id, RolUsuario rol) {
         return UsuarioDTO.builder()

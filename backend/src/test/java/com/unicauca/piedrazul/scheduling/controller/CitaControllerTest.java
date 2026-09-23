@@ -1,6 +1,7 @@
 package com.unicauca.piedrazul.scheduling.controller;
 
 import com.unicauca.piedrazul.auth.SecurityConfig;
+import com.unicauca.piedrazul.auth.internal.security.JwtUtil;
 import com.unicauca.piedrazul.auth.security.JwtAuthenticationFilter;
 import com.unicauca.piedrazul.scheduling.AgendamientoFacade;
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
@@ -43,6 +44,11 @@ class CitaControllerTest {
 
     @MockitoBean
     private AgendamientoFacade agendamientoFacade;
+
+    // Ver AuthControllerTest: JwtAuthenticationFilter necesita un JwtUtil
+    // real; sin mockearlo aquí, el ApplicationContext no arranca.
+    @MockitoBean
+    private JwtUtil jwtUtil;
 
     private CitaDTO citaDTO(Long id) {
         return CitaDTO.builder()

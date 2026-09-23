@@ -7,6 +7,7 @@ import com.unicauca.piedrazul.auth.dto.AuthResponse;
 import com.unicauca.piedrazul.auth.dto.CambioPasswordRequest;
 import com.unicauca.piedrazul.auth.dto.LoginRequest;
 import com.unicauca.piedrazul.auth.dto.RefreshTokenRequest;
+import com.unicauca.piedrazul.auth.internal.security.JwtUtil;
 import com.unicauca.piedrazul.auth.security.JwtAuthenticationFilter;
 import com.unicauca.piedrazul.shared.test.JwtAuthTestUtils;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,14 @@ class AuthControllerTest {
 
     @MockitoBean
     private AuthService authService;
+
+    // JwtAuthenticationFilter (importado arriba) requiere un JwtUtil real en
+    // su constructor. @WebMvcTest no hace component-scan de JwtUtil (no es
+    // un controller ni fue importado explícitamente), así que sin este mock
+    // Spring no puede crear el filtro y el ApplicationContext falla al
+    // arrancar, tumbando TODOS los tests de esta clase.
+    @MockitoBean
+    private JwtUtil jwtUtil;
 
     // ── login: sigue siendo público ────────────────────────────────────────
 
