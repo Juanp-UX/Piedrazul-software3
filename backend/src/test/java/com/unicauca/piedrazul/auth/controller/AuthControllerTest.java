@@ -11,11 +11,11 @@ import com.unicauca.piedrazul.auth.internal.security.JwtUtil;
 import com.unicauca.piedrazul.auth.security.JwtAuthenticationFilter;
 import com.unicauca.piedrazul.shared.test.JwtAuthTestUtils;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -40,8 +40,12 @@ class AuthControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    // Spring Boot 4 registra por defecto un JsonMapper (tools.jackson), no un
+    // bean de com.fasterxml.jackson.databind.ObjectMapper, así que @Autowired
+    // aquí falla con NoSuchBeanDefinitionException. Como jackson-databind 2.x
+    // sí está en el classpath (io.jsonwebtoken lo trae transitivamente),
+    // basta con instanciarlo nosotros mismos para estos tests.
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @MockitoBean
     private AuthService authService;

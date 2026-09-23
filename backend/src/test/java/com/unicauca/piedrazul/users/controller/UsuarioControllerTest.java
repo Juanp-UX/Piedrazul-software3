@@ -42,8 +42,11 @@ class UsuarioControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    // Ver AuthControllerTest: Spring Boot 4 no registra un bean de
+    // com.fasterxml.jackson.databind.ObjectMapper por defecto (usa
+    // tools.jackson.databind.json.JsonMapper), así que @Autowired fallaba
+    // aquí. Lo instanciamos nosotros mismos.
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @MockitoBean
     private IUsuarioService usuarioService;
