@@ -41,6 +41,14 @@ public class CitaServiceImpl implements ICitaService {
     // for overlap. 480 minutes (8 hours) is safely larger than any real slot.
     private static final int MAX_DURACION_MINUTOS = 480;
 
+    // Bug-fix: la disponibilidad semanal (horaInicio/horaFin) se configura
+    // pensando en hora local de Colombia. Antes se usaba ZoneId.systemDefault(),
+    // que depende de la zona configurada en el servidor -- si el servidor corre
+    // en UTC (como es común en contenedores), toda la franja horaria quedaba
+    // corrida 5 horas respecto a lo que el administrador configuró, causando
+    // que las citas después de cierta hora local quedaran "fuera de ventana".
+    private static final ZoneId ZONA_NEGOCIO = ZoneId.of("America/Bogota");
+
     private final CitaRepository citaRepository;
     private final DisponibilidadSemanalRepository disponibilidadRepository;
     private final BloqueoDisponibilidadRepository bloqueoRepository;
@@ -130,9 +138,8 @@ public class CitaServiceImpl implements ICitaService {
 
     @Override
     public List<CitaDTO> listarPorProfesionalYFecha(Long profesionalId, LocalDate fecha) {
-        ZoneId zona = ZoneId.systemDefault();
-        ZonedDateTime inicio = fecha.atStartOfDay(zona);
-        ZonedDateTime fin    = fecha.atTime(LocalTime.MAX).atZone(zona);
+        ZonedDateTime inicio = fecha.atStartOfDay(ZONA_NEGOCIO);
+        ZonedDateTime fin    = fecha.atTime(LocalTime.MAX).atZone(ZONA_NEGOCIO);
         return citaRepository.findByProfesionalIdAndFechaHoraBetween(profesionalId, inicio, fin)
                 .stream().map(this::toDTO).collect(Collectors.toList());
     }
@@ -155,7 +162,7 @@ public class CitaServiceImpl implements ICitaService {
                     List<ZonedDateTime> slots = new ArrayList<>();
                     LocalTime cursor = d.getHoraInicio();
                     while (!cursor.isAfter(d.getHoraFin().minusMinutes(d.getDuracionCitaMinutos()))) {
-                        ZonedDateTime slot = ZonedDateTime.of(fecha, cursor, ZoneId.systemDefault());
+                        ZonedDateTime slot = ZonedDateTime.of(fecha, cursor, ZONA_NEGOCIO);
                         slots.add(slot);
                         cursor = cursor.plusMinutes(d.getDuracionCitaMinutos());
                     }
@@ -371,9 +378,19 @@ public class CitaServiceImpl implements ICitaService {
      */
     private int resolverDuracion(Long profesionalId, ZonedDateTime fechaHora) {
         int diaSemana = fechaHora.getDayOfWeek().getValue() % 7;
+        LocalTime hora = fechaHora.toLocalTime();
+
+        // Bug-fix: cuando un profesional tiene más de una franja configurada
+        // el mismo día (p. ej. mañana 7-9 y tarde 9-14 con duraciones
+        // distintas), había que tomar la franja que realmente contiene la
+        // hora solicitada -- no la primera franja del día -- o se asignaba
+        // la duración equivocada y se "bloqueaban" horas libres.
         return disponibilidadRepository
                 .findByProfesionalIdAndDiaSemana(profesionalId, diaSemana)
                 .stream()
+                .filter(d ->
+                        !hora.isBefore(d.getHoraInicio()) &&
+                        !hora.isAfter(d.getHoraFin().minusMinutes(d.getDuracionCitaMinutos())))
                 .findFirst()
                 .map(DisponibilidadSemanal::getDuracionCitaMinutos)
                 .orElse(30);
