@@ -11,7 +11,6 @@ import com.unicauca.piedrazul.scheduling.internal.application.interfaces.IDiaNoD
 import com.unicauca.piedrazul.scheduling.internal.domain.builder.CitaProgramadaBuilder;
 import com.unicauca.piedrazul.scheduling.internal.domain.builder.DirectorCita;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.Cita;
-import com.unicauca.piedrazul.scheduling.internal.domain.entity.DisponibilidadSemanal;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
 import com.unicauca.piedrazul.scheduling.internal.domain.exceptions.*;
 import com.unicauca.piedrazul.scheduling.internal.domain.repository.BloqueoDisponibilidadRepository;
@@ -33,20 +32,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+
 @Service
 @Slf4j
 public class CitaServiceImpl implements ICitaService {
 
-    // Maximum slot duration used to widen the candidate window when querying
-    // for overlap. 480 minutes (8 hours) is safely larger than any real slot.
     private static final int MAX_DURACION_MINUTOS = 480;
 
-    // Bug-fix: la disponibilidad semanal (horaInicio/horaFin) se configura
-    // pensando en hora local de Colombia. Antes se usaba ZoneId.systemDefault(),
-    // que depende de la zona configurada en el servidor -- si el servidor corre
-    // en UTC (como es común en contenedores), toda la franja horaria quedaba
-    // corrida 5 horas respecto a lo que el administrador configuró, causando
-    // que las citas después de cierta hora local quedaran "fuera de ventana".
     private static final ZoneId ZONA_NEGOCIO = ZoneId.of("America/Bogota");
 
     private final CitaRepository citaRepository;
@@ -81,13 +73,11 @@ public class CitaServiceImpl implements ICitaService {
     @Override
     @Transactional
     public CitaDTO agendarCita(CitaDTO dto) {
-        ZonedDateTime fechaHora = dto.getFechaHora();
+        ZonedDateTime fechaHora = normalizarFechaHora(dto.getFechaHora());
 
         validarVentanaAgendamiento(fechaHora.toLocalDate());
         validarDiaNoDisponible(fechaHora.toLocalDate());
 
-        // Resolve the slot duration from the professional's weekly availability
-        // so it can be stored on the Cita and used in future overlap queries.
         int duracion = resolverDuracion(dto.getProfesionalId(), fechaHora);
 
         if (!isProfesionalDisponible(dto.getProfesionalId(), fechaHora, duracion)) {
@@ -169,7 +159,7 @@ public class CitaServiceImpl implements ICitaService {
                     return slots.stream();
                 })
                 .filter(slot ->
-                        slot.isAfter(ZonedDateTime.now()) &&
+                        slot.isAfter(ZonedDateTime.now(ZONA_NEGOCIO)) &&
                         // Bug-fix: use the duration-aware overlap check so that a slot
                         // mid-way through an active appointment is correctly hidden.
                         // Bug-fix: cancelled/completed rows are now excluded because
@@ -241,7 +231,7 @@ public class CitaServiceImpl implements ICitaService {
             );
         }
 
-        ZonedDateTime nuevaFechaHora = dto.getFechaHora();
+        ZonedDateTime nuevaFechaHora = normalizarFechaHora(dto.getFechaHora());
 
         if (!nuevaFechaHora.equals(cita.getFechaHora())) {
             validarVentanaAgendamiento(nuevaFechaHora.toLocalDate());
@@ -266,6 +256,13 @@ public class CitaServiceImpl implements ICitaService {
     }
 
     // ── Validaciones de política de agendamiento ─────────────────────────────
+    private ZonedDateTime normalizarFechaHora(ZonedDateTime fechaHora) {
+        if (fechaHora == null) {
+            throw new IllegalArgumentException("La fecha y hora de la cita son obligatorias.");
+        }
+
+        return fechaHora.withZoneSameInstant(ZONA_NEGOCIO);
+    }
 
     private void validarVentanaAgendamiento(LocalDate fecha) {
         LocalDate fechaMaxima = configuracionService.obtenerFechaMaximaAgendamiento();
@@ -273,7 +270,7 @@ public class CitaServiceImpl implements ICitaService {
             int semanas = configuracionService.obtener().getSemanasHabilitadas();
             throw new FueraDeVentanaAgendamientoException(semanas);
         }
-        if (fecha.isBefore(LocalDate.now())) {
+        if (fecha.isBefore(LocalDate.now(ZONA_NEGOCIO))) {
             throw new IllegalArgumentException("No se pueden agendar citas en fechas pasadas.");
         }
     }
@@ -301,7 +298,7 @@ public class CitaServiceImpl implements ICitaService {
     private boolean isProfesionalDisponible(Long profesionalId,
                                              ZonedDateTime fechaHora,
                                              int duracionMinutos) {
-        if (fechaHora.isBefore(ZonedDateTime.now())) return false;
+        if (fechaHora.isBefore(ZonedDateTime.now(ZONA_NEGOCIO))) return false;
         if (bloqueoRepository.existeBloqueoEnFecha(profesionalId, fechaHora)) return false;
         if (!estaEnVentanaDisponibilidad(profesionalId, fechaHora)) return false;
 
@@ -317,7 +314,7 @@ public class CitaServiceImpl implements ICitaService {
                                                        ZonedDateTime fechaHora,
                                                        int duracionMinutos,
                                                        Long excludeId) {
-        if (fechaHora.isBefore(ZonedDateTime.now())) return false;
+        if (fechaHora.isBefore(ZonedDateTime.now(ZONA_NEGOCIO))) return false;
         if (bloqueoRepository.existeBloqueoEnFecha(profesionalId, fechaHora)) return false;
         if (!estaEnVentanaDisponibilidad(profesionalId, fechaHora)) return false;
 
@@ -358,17 +355,33 @@ public class CitaServiceImpl implements ICitaService {
      * Verifies that fechaHora falls within the professional's configured weekly
      * availability window (not in the past, and within horaInicio..horaFin).
      */
-    private boolean estaEnVentanaDisponibilidad(Long profesionalId, ZonedDateTime fechaHora) {
-        int diaSemana = fechaHora.getDayOfWeek().getValue() % 7;
-        LocalTime hora = fechaHora.toLocalTime();
+    private boolean estaEnVentanaDisponibilidad(
+            Long profesionalId,
+            ZonedDateTime fechaHora) {
+
+        ZonedDateTime fechaHoraBogota =
+                fechaHora.withZoneSameInstant(ZONA_NEGOCIO);
+
+        int diaSemana =
+                fechaHoraBogota.getDayOfWeek().getValue() % 7;
+
+        LocalTime hora =
+                fechaHoraBogota.toLocalTime();
 
         return disponibilidadRepository
                 .findByProfesionalIdAndDiaSemana(profesionalId, diaSemana)
                 .stream()
-                .anyMatch(d ->
-                        !hora.isBefore(d.getHoraInicio()) &&
-                        !hora.isAfter(d.getHoraFin().minusMinutes(d.getDuracionCitaMinutos()))
-                );
+                .anyMatch(d -> {
+                    int duracion = d.getDuracionCitaMinutos() != null
+                            ? d.getDuracionCitaMinutos()
+                            : 30;
+
+                    LocalTime ultimaHoraInicioPermitida =
+                            d.getHoraFin().minusMinutes(duracion);
+
+                    return !hora.isBefore(d.getHoraInicio())
+                            && !hora.isAfter(ultimaHoraInicioPermitida);
+                });
     }
 
     /**
@@ -376,23 +389,36 @@ public class CitaServiceImpl implements ICitaService {
      * of fechaHora.  Falls back to DisponibilidadSemanal.duracionCitaMinutos
      * default (30) when no schedule is found.
      */
-    private int resolverDuracion(Long profesionalId, ZonedDateTime fechaHora) {
-        int diaSemana = fechaHora.getDayOfWeek().getValue() % 7;
-        LocalTime hora = fechaHora.toLocalTime();
+    private int resolverDuracion(
+            Long profesionalId,
+            ZonedDateTime fechaHora) {
 
-        // Bug-fix: cuando un profesional tiene más de una franja configurada
-        // el mismo día (p. ej. mañana 7-9 y tarde 9-14 con duraciones
-        // distintas), había que tomar la franja que realmente contiene la
-        // hora solicitada -- no la primera franja del día -- o se asignaba
-        // la duración equivocada y se "bloqueaban" horas libres.
+        ZonedDateTime fechaHoraBogota =
+                fechaHora.withZoneSameInstant(ZONA_NEGOCIO);
+
+        int diaSemana =
+                fechaHoraBogota.getDayOfWeek().getValue() % 7;
+
+        LocalTime hora =
+                fechaHoraBogota.toLocalTime();
         return disponibilidadRepository
                 .findByProfesionalIdAndDiaSemana(profesionalId, diaSemana)
                 .stream()
-                .filter(d ->
-                        !hora.isBefore(d.getHoraInicio()) &&
-                        !hora.isAfter(d.getHoraFin().minusMinutes(d.getDuracionCitaMinutos())))
+                .filter(d -> {
+                    int duracion = d.getDuracionCitaMinutos() != null
+                            ? d.getDuracionCitaMinutos()
+                            : 30;
+
+                    LocalTime ultimaHoraInicioPermitida =
+                            d.getHoraFin().minusMinutes(duracion);
+
+                    return !hora.isBefore(d.getHoraInicio())
+                            && !hora.isAfter(ultimaHoraInicioPermitida);
+                })
                 .findFirst()
-                .map(DisponibilidadSemanal::getDuracionCitaMinutos)
+                .map(d -> d.getDuracionCitaMinutos() != null
+                        ? d.getDuracionCitaMinutos()
+                        : 30)
                 .orElse(30);
     }
 
