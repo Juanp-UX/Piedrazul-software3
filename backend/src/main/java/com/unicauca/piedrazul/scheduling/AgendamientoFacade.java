@@ -4,6 +4,7 @@ package com.unicauca.piedrazul.scheduling;
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
 import com.unicauca.piedrazul.scheduling.dto.ConfiguracionAgendamientoDTO;
 import com.unicauca.piedrazul.scheduling.dto.DiaNoDisponibleDTO;
+import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
 import com.unicauca.piedrazul.scheduling.dto.DisponibilidadSemanalDTO;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
 
@@ -34,6 +35,12 @@ public interface AgendamientoFacade {
     List<CitaDTO> listarCitasPorProfesional(Long profesionalId);
 
     List<CitaDTO> listarCitasPorProfesionalYFecha(Long profesionalId, LocalDate fecha);
+
+    /** HU-1.2: archivo CSV (UTF-8) con las citas del profesional en la fecha. */
+    byte[] exportarCitasCsv(Long profesionalId, LocalDate fecha);
+
+    /** HU-4.1: historial de citas del paciente identificado por su cédula. */
+    HistorialCitasPacienteDTO consultarHistorialPorCedula(String cedula);
 
     List<ZonedDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha);
 
