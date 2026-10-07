@@ -2,12 +2,17 @@ package com.unicauca.piedrazul.scheduling.controller;
 
 import com.unicauca.piedrazul.scheduling.AgendamientoFacade;
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
+import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -75,6 +80,37 @@ public class CitaController {
         return ResponseEntity.ok()
                 .header("X-Total-Count", String.valueOf(citas.size()))
                 .body(citas);
+    }
+
+    /**
+     * HU-1.2: exporta en CSV las citas de un médico/terapista en una fecha.
+     * Mismos permisos que la consulta (el propio profesional, agendador o administrador).
+     */
+    @GetMapping(value = "/profesional/{profesionalId}/fecha/exportar", produces = "text/csv;charset=UTF-8")
+    @PreAuthorize("#profesionalId == authentication.principal or hasAnyRole('AGENDADOR','ADMINISTRADOR')")
+    public ResponseEntity<byte[]> exportarCitasCsv(
+            @PathVariable Long profesionalId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+
+        byte[] contenido = agendamientoFacade.exportarCitasCsv(profesionalId, fecha);
+        String nombreArchivo = "citas_" + fecha + "_profesional_" + profesionalId + ".csv";
+
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(nombreArchivo).build().toString())
+                .body(contenido);
+    }
+
+    /**
+     * HU-4.1: historial de citas de un paciente a partir de su cédula.
+     * Disponible para médico/terapista, agendador y administrador.
+     */
+    @GetMapping("/paciente/cedula/{cedula}")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','AGENDADOR','ADMINISTRADOR')")
+    public ResponseEntity<HistorialCitasPacienteDTO> consultarHistorialPorCedula(
+            @PathVariable String cedula) {
+        return ResponseEntity.ok(agendamientoFacade.consultarHistorialPorCedula(cedula));
     }
 
     @GetMapping("/profesional/{profesionalId}/disponibilidad")
