@@ -2,6 +2,7 @@ package com.unicauca.piedrazul.scheduling.internal.application.impl;
 
 
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
+import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
 import com.unicauca.piedrazul.scheduling.events.CitaAgendadaEvent;
 import com.unicauca.piedrazul.scheduling.events.CitaCanceladaEvent;
 import com.unicauca.piedrazul.scheduling.events.CitaCompletadaEvent;
@@ -17,18 +18,23 @@ import com.unicauca.piedrazul.scheduling.internal.domain.repository.BloqueoDispo
 import com.unicauca.piedrazul.scheduling.internal.domain.repository.CitaRepository;
 import com.unicauca.piedrazul.scheduling.internal.domain.repository.DisponibilidadSemanalRepository;
 import com.unicauca.piedrazul.scheduling.internal.domain.state.CitaEstadoResolver;
+import com.unicauca.piedrazul.users.IPacienteService;
 import com.unicauca.piedrazul.users.IUsuarioService;
+import com.unicauca.piedrazul.users.dto.PacienteDTO;
 import com.unicauca.piedrazul.users.dto.UsuarioDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,6 +47,16 @@ public class CitaServiceImpl implements ICitaService {
 
     private static final ZoneId ZONA_NEGOCIO = ZoneId.of("America/Bogota");
 
+    // HU-1.2: formato del archivo exportado.
+    // Separador ';' y BOM UTF-8 para que Excel (configuración regional es-CO) lo abra
+    // en columnas y con tildes correctas; Google Sheets y LibreOffice también lo detectan.
+    private static final char CSV_SEPARADOR = ';';
+    private static final String CSV_BOM = "\uFEFF";
+    private static final String CSV_SALTO = "\r\n";
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter FORMATO_HORA  = DateTimeFormatter.ofPattern("HH:mm");
+    private static final int MAX_LONGITUD_CEDULA = 20;
+
     private final CitaRepository citaRepository;
     private final DisponibilidadSemanalRepository disponibilidadRepository;
     private final BloqueoDisponibilidadRepository bloqueoRepository;
@@ -48,6 +64,7 @@ public class CitaServiceImpl implements ICitaService {
     private final IConfiguracionAgendamientoService configuracionService;
     private final IDiaNoDisponibleService diaNoDisponibleService;
     private final IUsuarioService usuarioService;
+    private final IPacienteService pacienteService;
     private final ApplicationEventPublisher events;
 
     public CitaServiceImpl(CitaRepository citaRepository,
@@ -57,6 +74,7 @@ public class CitaServiceImpl implements ICitaService {
                            IConfiguracionAgendamientoService configuracionService,
                            IDiaNoDisponibleService diaNoDisponibleService,
                            IUsuarioService usuarioService,
+                           IPacienteService pacienteService,
                            ApplicationEventPublisher events) {
         this.citaRepository           = citaRepository;
         this.disponibilidadRepository = disponibilidadRepository;
@@ -65,6 +83,7 @@ public class CitaServiceImpl implements ICitaService {
         this.configuracionService     = configuracionService;
         this.diaNoDisponibleService   = diaNoDisponibleService;
         this.usuarioService           = usuarioService;
+        this.pacienteService          = pacienteService;
         this.events                   = events;
     }
 
@@ -131,7 +150,94 @@ public class CitaServiceImpl implements ICitaService {
         ZonedDateTime inicio = fecha.atStartOfDay(ZONA_NEGOCIO);
         ZonedDateTime fin    = fecha.atTime(LocalTime.MAX).atZone(ZONA_NEGOCIO);
         return citaRepository.findByProfesionalIdAndFechaHoraBetween(profesionalId, inicio, fin)
-                .stream().map(this::toDTO).collect(Collectors.toList());
+                .stream()
+                .sorted(Comparator.comparing(Cita::getFechaHora))
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    // ── HU-1.2: exportar citas del día de un profesional (CSV) ───────────────
+
+    @Override
+    public byte[] exportarCitasCsv(Long profesionalId, LocalDate fecha) {
+        List<CitaDTO> citas = listarPorProfesionalYFecha(profesionalId, fecha);
+
+        StringBuilder csv = new StringBuilder(CSV_BOM);
+        csv.append(filaCsv("Fecha", "Hora", "Paciente", "Médico/Terapista", "Estado"));
+        for (CitaDTO c : citas) {
+            ZonedDateTime fechaHora = c.getFechaHora().withZoneSameInstant(ZONA_NEGOCIO);
+            csv.append(filaCsv(
+                    fechaHora.format(FORMATO_FECHA),
+                    fechaHora.format(FORMATO_HORA),
+                    c.getPacienteNombre(),
+                    c.getProfesionalNombre(),
+                    c.getEstado() != null ? c.getEstado().name() : ""));
+        }
+
+        log.info("Exportación CSV: profesional={} fecha={} filas={}", profesionalId, fecha, citas.size());
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String filaCsv(String... campos) {
+        StringBuilder fila = new StringBuilder();
+        for (int i = 0; i < campos.length; i++) {
+            if (i > 0) fila.append(CSV_SEPARADOR);
+            fila.append(escaparCampoCsv(campos[i]));
+        }
+        return fila.append(CSV_SALTO).toString();
+    }
+
+    /**
+     * Escapa un campo CSV: lo encierra en comillas si contiene separador,
+     * comillas o saltos de línea, y neutraliza la "inyección de fórmulas"
+     * (valores que empiezan por = + - @ se interpretarían como fórmula al
+     * abrirse en una hoja de cálculo; el nombre del paciente es texto libre).
+     */
+    private String escaparCampoCsv(String valor) {
+        if (valor == null || valor.isEmpty()) return "";
+        String v = valor;
+        char primero = v.charAt(0);
+        if (primero == '=' || primero == '+' || primero == '-' || primero == '@'
+                || primero == '\t' || primero == '\r') {
+            v = "'" + v;
+        }
+        boolean requiereComillas = v.indexOf(CSV_SEPARADOR) >= 0 || v.indexOf('"') >= 0
+                || v.indexOf('\n') >= 0 || v.indexOf('\r') >= 0;
+        if (requiereComillas) {
+            v = "\"" + v.replace("\"", "\"\"") + "\"";
+        }
+        return v;
+    }
+
+    // ── HU-4.1: historial de citas de un paciente por cédula ─────────────────
+
+    @Override
+    public HistorialCitasPacienteDTO consultarHistorialPorCedula(String cedula) {
+        if (cedula == null || cedula.trim().isEmpty()) {
+            throw new IllegalArgumentException("La cédula del paciente es obligatoria.");
+        }
+        String cedulaNormalizada = cedula.trim();
+        if (cedulaNormalizada.length() > MAX_LONGITUD_CEDULA) {
+            throw new IllegalArgumentException(
+                    "La cédula no puede superar los " + MAX_LONGITUD_CEDULA + " caracteres.");
+        }
+
+        // Buscar paciente (lanza PacienteNoEncontradoException -> 404 si no existe)
+        PacienteDTO paciente = pacienteService.buscarPorCedula(cedulaNormalizada);
+
+        // Cita.pacienteId referencia al Usuario.id del paciente
+        List<CitaDTO> citas = citaRepository.findByPacienteId(paciente.getUsuarioId())
+                .stream()
+                .sorted(Comparator.comparing(Cita::getFechaHora).reversed())
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+
+        return HistorialCitasPacienteDTO.builder()
+                .pacienteId(paciente.getUsuarioId())
+                .pacienteNombre(paciente.getNombreCompleto())
+                .cedulaIdentidad(paciente.getCedulaIdentidad())
+                .citas(citas)
+                .build();
     }
 
     @Override
@@ -160,13 +266,13 @@ public class CitaServiceImpl implements ICitaService {
                 })
                 .filter(slot ->
                         slot.isAfter(ZonedDateTime.now(ZONA_NEGOCIO)) &&
-                        // Bug-fix: use the duration-aware overlap check so that a slot
-                        // mid-way through an active appointment is correctly hidden.
-                        // Bug-fix: cancelled/completed rows are now excluded because
-                        // isProfesionalDisponible only queries PROGRAMADA rows.
-                        isProfesionalDisponible(profesionalId, slot,
-                                resolverDuracion(profesionalId, slot)) &&
-                        !bloqueoRepository.existeBloqueoEnFecha(profesionalId, slot)
+                                // Bug-fix: use the duration-aware overlap check so that a slot
+                                // mid-way through an active appointment is correctly hidden.
+                                // Bug-fix: cancelled/completed rows are now excluded because
+                                // isProfesionalDisponible only queries PROGRAMADA rows.
+                                isProfesionalDisponible(profesionalId, slot,
+                                        resolverDuracion(profesionalId, slot)) &&
+                                !bloqueoRepository.existeBloqueoEnFecha(profesionalId, slot)
                 )
                 .collect(Collectors.toList());
     }
@@ -296,8 +402,8 @@ public class CitaServiceImpl implements ICitaService {
      * appointment.
      */
     private boolean isProfesionalDisponible(Long profesionalId,
-                                             ZonedDateTime fechaHora,
-                                             int duracionMinutos) {
+                                            ZonedDateTime fechaHora,
+                                            int duracionMinutos) {
         if (fechaHora.isBefore(ZonedDateTime.now(ZONA_NEGOCIO))) return false;
         if (bloqueoRepository.existeBloqueoEnFecha(profesionalId, fechaHora)) return false;
         if (!estaEnVentanaDisponibilidad(profesionalId, fechaHora)) return false;
@@ -311,9 +417,9 @@ public class CitaServiceImpl implements ICitaService {
      * does not block its own target slot.
      */
     private boolean isProfesionalDisponibleExcluyendo(Long profesionalId,
-                                                       ZonedDateTime fechaHora,
-                                                       int duracionMinutos,
-                                                       Long excludeId) {
+                                                      ZonedDateTime fechaHora,
+                                                      int duracionMinutos,
+                                                      Long excludeId) {
         if (fechaHora.isBefore(ZonedDateTime.now(ZONA_NEGOCIO))) return false;
         if (bloqueoRepository.existeBloqueoEnFecha(profesionalId, fechaHora)) return false;
         if (!estaEnVentanaDisponibilidad(profesionalId, fechaHora)) return false;
@@ -331,9 +437,9 @@ public class CitaServiceImpl implements ICitaService {
      *     before "inicio" but extends into it is not missed.
      */
     private boolean hayConflictoConProgramadas(Long profesionalId,
-                                                ZonedDateTime inicio,
-                                                int duracionMinutos,
-                                                Long excludeId) {
+                                               ZonedDateTime inicio,
+                                               int duracionMinutos,
+                                               Long excludeId) {
         ZonedDateTime fin           = inicio.plusMinutes(duracionMinutos);
         ZonedDateTime ventanaInicio = inicio.minusMinutes(MAX_DURACION_MINUTOS);
 

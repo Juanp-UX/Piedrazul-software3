@@ -2,6 +2,7 @@ package com.unicauca.piedrazul.users.internal.config;
 
 import com.unicauca.piedrazul.shared.ApiError;
 import com.unicauca.piedrazul.users.internal.domain.exceptions.LoginDuplicadoException;
+import com.unicauca.piedrazul.users.internal.domain.exceptions.PacienteNoEncontradoException;
 import com.unicauca.piedrazul.users.internal.domain.exceptions.UsuarioNoEncontradoException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,5 +35,13 @@ public class UsersExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiError(HttpStatus.NOT_FOUND.value(),
                         "Usuario no encontrado", ex.getMessage()));
+    }
+
+    /** HU-4.1: cédula sin paciente asociado. */
+    @ExceptionHandler(PacienteNoEncontradoException.class)
+    public ResponseEntity<ApiError> handlePacienteNoEncontrado(PacienteNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiError(HttpStatus.NOT_FOUND.value(),
+                        "Paciente no encontrado", ex.getMessage()));
     }
 }

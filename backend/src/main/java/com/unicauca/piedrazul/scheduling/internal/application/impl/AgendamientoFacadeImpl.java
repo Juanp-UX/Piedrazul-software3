@@ -4,6 +4,7 @@ import com.unicauca.piedrazul.scheduling.AgendamientoFacade;
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
 import com.unicauca.piedrazul.scheduling.dto.ConfiguracionAgendamientoDTO;
 import com.unicauca.piedrazul.scheduling.dto.DiaNoDisponibleDTO;
+import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
 import com.unicauca.piedrazul.scheduling.dto.DisponibilidadSemanalDTO;
 import com.unicauca.piedrazul.scheduling.internal.application.interfaces.ICitaService;
 import com.unicauca.piedrazul.scheduling.internal.application.interfaces.IConfiguracionAgendamientoService;
@@ -78,6 +79,16 @@ public class AgendamientoFacadeImpl implements AgendamientoFacade {
     @Override
     public List<CitaDTO> listarCitasPorProfesionalYFecha(Long profesionalId, LocalDate fecha) {
         return citaService.listarPorProfesionalYFecha(profesionalId, fecha);
+    }
+
+    @Override
+    public byte[] exportarCitasCsv(Long profesionalId, LocalDate fecha) {
+        return citaService.exportarCitasCsv(profesionalId, fecha);
+    }
+
+    @Override
+    public HistorialCitasPacienteDTO consultarHistorialPorCedula(String cedula) {
+        return citaService.consultarHistorialPorCedula(cedula);
     }
 
     @Override

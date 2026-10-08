@@ -4,6 +4,7 @@ import com.unicauca.piedrazul.users.IPacienteService;
 import com.unicauca.piedrazul.users.dto.PacienteDTO;
 import com.unicauca.piedrazul.users.internal.domain.entity.Paciente;
 import com.unicauca.piedrazul.users.internal.domain.entity.Usuario;
+import com.unicauca.piedrazul.users.internal.domain.exceptions.PacienteNoEncontradoException;
 import com.unicauca.piedrazul.users.internal.domain.repository.PacienteRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,9 +34,18 @@ public class PacienteServiceImpl implements IPacienteService {
                 .creadoEn(ZonedDateTime.now())
                 .build());
     }
+    @Override
+    @Transactional(readOnly = true)
+    public PacienteDTO buscarPorCedula(String cedula) {
+        return pacienteRepository.findByCedulaIdentidad(cedula)
+                .map(this::toDTO)
+                .orElseThrow(() -> new PacienteNoEncontradoException(cedula));
+    }
+
     private PacienteDTO toDTO(Paciente p) {
         return PacienteDTO.builder()
                 .id(p.getId())
+                .usuarioId(p.getUsuario() != null ? p.getUsuario().getId() : null)
                 .nombreCompleto(p.getNombreCompleto())
                 .cedulaIdentidad(p.getCedulaIdentidad())
                 .fechaNacimiento(p.getFechaNacimiento())

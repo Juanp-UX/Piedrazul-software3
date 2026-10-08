@@ -11,6 +11,8 @@ import java.time.LocalDate;
 @Builder
 public class PacienteDTO {
     private Long id;
+    /** Id del Usuario asociado (es el que referencian las citas como pacienteId). */
+    private Long usuarioId;
     private String nombreCompleto;
     private String cedulaIdentidad;
     private LocalDate fechaNacimiento;
