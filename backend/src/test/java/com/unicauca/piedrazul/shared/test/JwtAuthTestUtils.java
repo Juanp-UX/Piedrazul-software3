@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Reproduce en los tests @WebMvcTest la misma forma de Authentication que
- * JwtAuthenticationFilter coloca en el SecurityContext en producción:
+ * UsuarioJwtConverter produce en producción a partir del JWT de Keycloak:
  * principal = usuarioId (Long), authority = "ROLE_" + rol en mayúsculas.
  * <p>
  * Las anotaciones @WithMockUser de spring-security-test no sirven aquí

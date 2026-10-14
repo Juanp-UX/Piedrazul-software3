@@ -12,8 +12,28 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Emisor esperado en el claim "iss" (la URL con la que el navegador llega a Keycloak).
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/piedrazul}
+          # Claves públicas del realm; se separa del issuer por si el backend llega a Keycloak
+          # con otro host (p. ej. "keycloak:8080" dentro de docker compose).
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/piedrazul/protocol/openid-connect/certs}
 
-jwt:
-  secret: "${JWT_SECRET:bCrzAJipG9zqoa1R1yOTZJ0Slm+i5I+ffOZ6ogq33so=}"
-  access-expiration: 900000
-  refresh-expiration: 604800000
+# Cliente administrador del backend: crea las cuentas de acceso al registrar usuarios
+keycloak:
+  server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8180}
+  realm: ${KEYCLOAK_REALM:piedrazul}
+  admin:
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:piedrazul-backend}
+    # Solo para desarrollo local; en cualquier otro entorno define KEYCLOAK_ADMIN_CLIENT_SECRET
+    client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:piedrazul-backend-dev-secret}
+
+# Primer administrador (perfil local). La contraseña se define en Keycloak.
+piedrazul:
+  bootstrap-admin:
+    enabled: true
+    login: ${BOOTSTRAP_ADMIN_LOGIN:admin}
+    nombre-completo: Administrador Piedra Azul

@@ -1,0 +1,19 @@
+# Keycloak para desarrollo local (modo dev, base de datos H2 embebida).
+#   docker compose up -d keycloak
+# Consola de administración: http://localhost:8180  (admin / admin)
+# Realm "piedrazul": se importa solo desde ./keycloak/piedrazul-realm.json
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+      - keycloak-data:/opt/keycloak/data/h2
+
+volumes:
+  keycloak-data:

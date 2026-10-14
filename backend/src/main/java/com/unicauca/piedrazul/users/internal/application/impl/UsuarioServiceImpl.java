@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 /**
  * Implementación del servicio de gestión de usuarios.
@@ -77,6 +78,11 @@ public class UsuarioServiceImpl implements IUsuarioService {
         Usuario usuario=usuarioRepository.findById(id)
                 .orElseThrow(()-> new UsuarioNoEncontradoException(id.toString()));
         return toDTO(usuario);
+    }
+
+    @Override
+    public Optional<UsuarioDTO> buscarPorLogin(String login) {
+        return usuarioRepository.findByLoginIgnoreCase(login).map(this::toDTO);
     }
 
     // HU 1.3 - implementacion edicion de usuario por admin

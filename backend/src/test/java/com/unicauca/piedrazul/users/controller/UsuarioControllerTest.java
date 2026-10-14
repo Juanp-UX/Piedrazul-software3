@@ -2,8 +2,7 @@ package com.unicauca.piedrazul.users.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.unicauca.piedrazul.auth.SecurityConfig;
-import com.unicauca.piedrazul.auth.internal.security.JwtUtil;
-import com.unicauca.piedrazul.auth.security.JwtAuthenticationFilter;
+import com.unicauca.piedrazul.auth.security.UsuarioJwtConverter;
 import com.unicauca.piedrazul.shared.RolUsuario;
 import com.unicauca.piedrazul.shared.test.JwtAuthTestUtils;
 import com.unicauca.piedrazul.users.IUsuarioService;
@@ -12,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,6 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -36,13 +37,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * cualquier usuario autenticado.
  */
 @WebMvcTest(UsuarioController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@Import(SecurityConfig.class)
 class UsuarioControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    // Ver AuthControllerTest: Spring Boot 4 no registra un bean de
+    // Spring Boot 4 no registra un bean de
     // com.fasterxml.jackson.databind.ObjectMapper por defecto (usa
     // tools.jackson.databind.json.JsonMapper), así que @Autowired fallaba
     // aquí. Lo instanciamos nosotros mismos.
@@ -51,10 +52,14 @@ class UsuarioControllerTest {
     @MockitoBean
     private IUsuarioService usuarioService;
 
-    // Ver AuthControllerTest: JwtAuthenticationFilter necesita un JwtUtil
-    // real; sin mockearlo aquí, el ApplicationContext no arranca.
+    // SecurityConfig es un resource server OAuth2: necesita un JwtDecoder y el conversor
+    // JWT -> usuario. En estos tests la autenticación se inyecta con JwtAuthTestUtils,
+    // así que basta con mocks para que el ApplicationContext arranque.
     @MockitoBean
-    private JwtUtil jwtUtil;
+    private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private UsuarioJwtConverter usuarioJwtConverter;
 
     private UsuarioDTO usuarioDTO(Long id, RolUsuario rol) {
         return UsuarioDTO.builder()
@@ -185,5 +190,26 @@ class UsuarioControllerTest {
                 .andExpect(status().isForbidden());
 
         verify(usuarioService, never()).activarUsuario(any());
+    }
+
+    // ── /me: perfil del usuario autenticado (lo usa el frontend tras el login con Keycloak) ──
+
+    @Test
+    void perfilActual_devuelveElUsuarioDelPrincipal() throws Exception {
+        given(usuarioService.buscarPorId(5L)).willReturn(usuarioDTO(5L, RolUsuario.paciente));
+
+        mockMvc.perform(get("/api/users/usuarios/me")
+                        .with(JwtAuthTestUtils.comoPaciente(5L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5))
+                .andExpect(jsonPath("$.rol").value("paciente"));
+    }
+
+    @Test
+    void perfilActual_sinToken_esRechazadoConUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/users/usuarios/me"))
+                .andExpect(status().isUnauthorized());
+
+        verify(usuarioService, never()).buscarPorId(any());
     }
 }

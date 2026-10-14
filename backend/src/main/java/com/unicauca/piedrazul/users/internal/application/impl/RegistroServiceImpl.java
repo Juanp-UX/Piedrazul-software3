@@ -8,6 +8,9 @@ import com.unicauca.piedrazul.users.internal.application.template.RegistroContex
 import com.unicauca.piedrazul.users.internal.application.template.impl.RegistroAdminService;
 import com.unicauca.piedrazul.users.internal.application.template.impl.RegistroPacienteService;
 import com.unicauca.piedrazul.users.internal.application.template.impl.RegistroProfesionalService;
+import com.unicauca.piedrazul.users.internal.identity.IIdentityProvider;
+import com.unicauca.piedrazul.users.internal.identity.IIdentityProvider.CuentaNueva;
+import com.unicauca.piedrazul.users.internal.identity.PasswordPolicy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +39,10 @@ import org.springframework.transaction.annotation.Transactional;
  *         2. vincularPerfil()       ← hook sobreescrito en cada subclase
  *         3. toDTO()
  * </pre>
+ *
+ * <p>Después de crear el perfil local, la fachada crea la cuenta de acceso (usuario y
+ * contraseña) en Keycloak. Todo ocurre en la misma transacción: si Keycloak falla se
+ * revierte el registro local, y si el commit local falla se elimina la cuenta de Keycloak.
  */
 @Service
 public class RegistroServiceImpl implements IRegistroService {
@@ -43,13 +50,16 @@ public class RegistroServiceImpl implements IRegistroService {
     private final RegistroAdminService adminService;
     private final RegistroPacienteService pacienteService;
     private final RegistroProfesionalService profesionalService;
+    private final IIdentityProvider identityProvider;
 
     public RegistroServiceImpl(RegistroAdminService adminService,
                                RegistroPacienteService pacienteService,
-                               RegistroProfesionalService profesionalService) {
+                               RegistroProfesionalService profesionalService,
+                               IIdentityProvider identityProvider) {
         this.adminService       = adminService;
         this.pacienteService    = pacienteService;
         this.profesionalService = profesionalService;
+        this.identityProvider   = identityProvider;
     }
 
     /**
@@ -59,9 +69,12 @@ public class RegistroServiceImpl implements IRegistroService {
     @Override
     @Transactional
     public UsuarioDTO registrarUsuario(UsuarioDTO usuarioDTO) {
-        return adminService.registrar(
+        PasswordPolicy.validar(usuarioDTO.getPassword());
+        UsuarioDTO creado = adminService.registrar(
                 new RegistroContexto(usuarioDTO, null, null)
         );
+        crearCuentaDeAcceso(creado, null, usuarioDTO.getPassword());
+        return creado;
     }
 
     /**
@@ -71,9 +84,12 @@ public class RegistroServiceImpl implements IRegistroService {
     @Override
     @Transactional
     public UsuarioDTO registrarPaciente(UsuarioDTO usuarioDTO, PacienteDTO pacienteDTO) {
-        return pacienteService.registrar(
+        PasswordPolicy.validar(usuarioDTO.getPassword());
+        UsuarioDTO creado = pacienteService.registrar(
                 new RegistroContexto(usuarioDTO, pacienteDTO, null)
         );
+        crearCuentaDeAcceso(creado, pacienteDTO.getEmail(), usuarioDTO.getPassword());
+        return creado;
     }
 
     /**
@@ -84,8 +100,16 @@ public class RegistroServiceImpl implements IRegistroService {
     @Override
     @Transactional
     public UsuarioDTO registrarProfesional(UsuarioDTO usuarioDTO, ProfesionalDTO profesionalDTO) {
-        return profesionalService.registrar(
+        PasswordPolicy.validar(usuarioDTO.getPassword());
+        UsuarioDTO creado = profesionalService.registrar(
                 new RegistroContexto(usuarioDTO, null, profesionalDTO)
         );
+        crearCuentaDeAcceso(creado, null, usuarioDTO.getPassword());
+        return creado;
+    }
+
+    private void crearCuentaDeAcceso(UsuarioDTO usuario, String email, String password) {
+        identityProvider.crearCuenta(new CuentaNueva(
+                usuario.getLogin(), usuario.getNombreCompleto(), email, password));
     }
 }

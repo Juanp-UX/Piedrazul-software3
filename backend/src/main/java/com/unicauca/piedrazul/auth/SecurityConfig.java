@@ -1,31 +1,35 @@
 package com.unicauca.piedrazul.auth;
 
-import com.unicauca.piedrazul.auth.security.JwtAuthenticationFilter;
+import com.unicauca.piedrazul.auth.security.UsuarioJwtConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * La API es un <b>resource server OAuth2</b>: Keycloak emite los JWT y Spring
+ * Security los valida (firma contra el JWKS del realm, expiración y emisor).
+ * El {@code JwtDecoder} lo crea Spring Boot a partir de
+ * {@code spring.security.oauth2.resourceserver.jwt.*} en application.yaml.
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final UsuarioJwtConverter usuarioJwtConverter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    public SecurityConfig(UsuarioJwtConverter usuarioJwtConverter) {
+        this.usuarioJwtConverter = usuarioJwtConverter;
     }
 
     @Bean
@@ -36,20 +40,15 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/login",
-                                "/api/auth/registro",
-                                "/api/auth/refresh",
-                                "/api/auth/logout"
-                        ).permitAll()
-                        .requestMatchers("/api/users/registro/**").permitAll()
-                        // logout-all y cambio de password requieren estar autenticado;
-                        // la verificación de que el usuarioId del path coincide con el
-                        // usuario del token (o que quien llama es ADMINISTRADOR) se hace
-                        // en AuthController con @PreAuthorize.
+                        // Único endpoint público: el autorregistro de pacientes.
+                        .requestMatchers(HttpMethod.POST, "/api/users/registro/paciente").permitAll()
+                        // Crear otros usuarios (administrador, profesional...) es una
+                        // operación administrativa; antes estaba abierta a cualquiera.
+                        .requestMatchers("/api/users/registro/**").hasRole("ADMINISTRADOR")
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(usuarioJwtConverter)));
 
         return http.build();
     }
@@ -68,10 +67,5 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 }

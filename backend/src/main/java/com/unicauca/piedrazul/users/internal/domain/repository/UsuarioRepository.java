@@ -13,6 +13,8 @@ import java.util.Optional;
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByLogin(String login);
+    /** Keycloak guarda los nombres de usuario en minúsculas; el login local puede tener mayúsculas. */
+    Optional<Usuario> findByLoginIgnoreCase(String login);
     List<Usuario>     findByRol(RolUsuario rol);
     List<Usuario>     findByActivoTrue();
     boolean           existsByLogin(String login);

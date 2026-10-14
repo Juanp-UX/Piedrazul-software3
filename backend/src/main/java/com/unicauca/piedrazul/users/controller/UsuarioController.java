@@ -6,6 +6,7 @@ import com.unicauca.piedrazul.users.IUsuarioService;
 import com.unicauca.piedrazul.users.dto.UsuarioDTO;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,6 +27,15 @@ public class UsuarioController {
 
     public UsuarioController(IUsuarioService usuarioService) {
         this.usuarioService = usuarioService;
+    }
+
+    /**
+     * Perfil del usuario autenticado (id, nombre y rol). El frontend lo consulta al iniciar
+     * sesión con Keycloak, porque el id y el rol viven en la tabla de usuarios y no en el token.
+     */
+    @GetMapping("/me")
+    public ResponseEntity<UsuarioDTO> perfilActual(Authentication authentication) {
+        return ResponseEntity.ok(usuarioService.buscarPorId((Long) authentication.getPrincipal()));
     }
 
     @GetMapping

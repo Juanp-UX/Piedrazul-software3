@@ -1,5 +1,6 @@
 package com.unicauca.piedrazul.users.controller;
 
+import com.unicauca.piedrazul.shared.RolUsuario;
 import com.unicauca.piedrazul.users.dto.UsuarioDTO;
 import com.unicauca.piedrazul.users.internal.application.interfaces.IRegistroService;
 import com.unicauca.piedrazul.users.internal.domain.dto.request.RegistroPacienteRequest;
@@ -29,6 +30,11 @@ public class RegistroController {
 
     @PostMapping("/paciente")
     public ResponseEntity<UsuarioDTO> registrarPaciente(@RequestBody RegistroPacienteRequest request) {
+        if (request.getUsuario() == null || request.getPaciente() == null) {
+            throw new IllegalArgumentException("Los datos del usuario y del paciente son obligatorios.");
+        }
+        // Endpoint público: el rol nunca lo decide el cliente.
+        request.getUsuario().setRol(RolUsuario.paciente);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(registroService.registrarPaciente(request.getUsuario(), request.getPaciente()));
     }

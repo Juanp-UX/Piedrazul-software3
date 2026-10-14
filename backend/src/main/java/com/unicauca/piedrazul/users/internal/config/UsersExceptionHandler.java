@@ -2,6 +2,7 @@ package com.unicauca.piedrazul.users.internal.config;
 
 import com.unicauca.piedrazul.shared.ApiError;
 import com.unicauca.piedrazul.users.internal.domain.exceptions.LoginDuplicadoException;
+import com.unicauca.piedrazul.users.internal.identity.IdentityProviderException;
 import com.unicauca.piedrazul.users.internal.domain.exceptions.PacienteNoEncontradoException;
 import com.unicauca.piedrazul.users.internal.domain.exceptions.UsuarioNoEncontradoException;
 import org.springframework.http.HttpStatus;
@@ -43,5 +44,14 @@ public class UsersExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiError(HttpStatus.NOT_FOUND.value(),
                         "Paciente no encontrado", ex.getMessage()));
+    }
+
+    /** Keycloak no disponible o rechazó la creación de la cuenta de acceso. */
+    @ExceptionHandler(IdentityProviderException.class)
+    public ResponseEntity<ApiError> handleIdentityProvider(IdentityProviderException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new ApiError(HttpStatus.BAD_GATEWAY.value(),
+                        "Servicio de autenticación no disponible",
+                        "No fue posible crear la cuenta de acceso. Intenta nuevamente en unos minutos."));
     }
 }

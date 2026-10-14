@@ -1,8 +1,7 @@
 package com.unicauca.piedrazul.scheduling.controller;
 
 import com.unicauca.piedrazul.auth.SecurityConfig;
-import com.unicauca.piedrazul.auth.internal.security.JwtUtil;
-import com.unicauca.piedrazul.auth.security.JwtAuthenticationFilter;
+import com.unicauca.piedrazul.auth.security.UsuarioJwtConverter;
 import com.unicauca.piedrazul.scheduling.AgendamientoFacade;
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
@@ -11,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *  - cancelar/completar/actualizar/contar: solo AGENDADOR/ADMINISTRADOR.
  */
 @WebMvcTest(CitaController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@Import(SecurityConfig.class)
 class CitaControllerTest {
 
     @Autowired
@@ -45,10 +45,14 @@ class CitaControllerTest {
     @MockitoBean
     private AgendamientoFacade agendamientoFacade;
 
-    // Ver AuthControllerTest: JwtAuthenticationFilter necesita un JwtUtil
-    // real; sin mockearlo aquí, el ApplicationContext no arranca.
+    // SecurityConfig es un resource server OAuth2: necesita un JwtDecoder y el conversor
+    // JWT -> usuario. En estos tests la autenticación se inyecta con JwtAuthTestUtils,
+    // así que basta con mocks para que el ApplicationContext arranque.
     @MockitoBean
-    private JwtUtil jwtUtil;
+    private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private UsuarioJwtConverter usuarioJwtConverter;
 
     private CitaDTO citaDTO(Long id) {
         return CitaDTO.builder()

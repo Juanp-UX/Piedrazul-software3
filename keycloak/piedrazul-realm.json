@@ -1,0 +1,72 @@
+{
+  "realm": "piedrazul",
+  "displayName": "Piedra Azul",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": true,
+  "bruteForceProtected": true,
+  "passwordPolicy": "length(8) and upperCase(1) and digits(1)",
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["es", "en"],
+  "defaultLocale": "es",
+  "clients": [
+    {
+      "clientId": "piedrazul-frontend",
+      "name": "Piedra Azul - Frontend (Angular)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4200/*"
+      }
+    },
+    {
+      "clientId": "piedrazul-backend",
+      "name": "Piedra Azul - Backend (Admin API)",
+      "description": "Crea las cuentas de acceso cuando se registra un usuario. Solo tiene el rol manage-users.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "piedrazul-backend-dev-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-piedrazul-backend",
+      "enabled": true,
+      "serviceAccountClientId": "piedrazul-backend",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users"]
+      }
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Administrador",
+      "lastName": "Piedra Azul",
+      "email": "admin@piedrazul.local",
+      "credentials": [
+        { "type": "password", "value": "Admin12345", "temporary": false }
+      ]
+    }
+  ]
+}
