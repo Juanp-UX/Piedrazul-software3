@@ -92,6 +92,9 @@ public class CitaServiceImpl implements ICitaService {
     @Override
     @Transactional
     public CitaDTO agendarCita(CitaDTO dto) {
+        // Debe ser lo primero: serializa los agendamientos del mismo profesional
+        // (evita que dos peticiones concurrentes pasen el chequeo y ambas inserten).
+        bloquearAgendaProfesional(dto.getProfesionalId());
         ZonedDateTime fechaHora = normalizarFechaHora(dto.getFechaHora());
 
         validarVentanaAgendamiento(fechaHora.toLocalDate());
@@ -340,6 +343,7 @@ public class CitaServiceImpl implements ICitaService {
         ZonedDateTime nuevaFechaHora = normalizarFechaHora(dto.getFechaHora());
 
         if (!nuevaFechaHora.equals(cita.getFechaHora())) {
+            bloquearAgendaProfesional(cita.getProfesionalId());
             validarVentanaAgendamiento(nuevaFechaHora.toLocalDate());
             validarDiaNoDisponible(nuevaFechaHora.toLocalDate());
 
@@ -359,6 +363,15 @@ public class CitaServiceImpl implements ICitaService {
         CitaDTO actualizada = toDTO(citaRepository.save(cita));
         log.info("Cita reprogramada: id={} nuevaFecha={}", id, nuevaFechaHora);
         return actualizada;
+    }
+
+    /**
+     * Toma un lock de fila por profesional hasta el fin de la transacción.
+     * Reemplaza a la restricción única de BD (retirada para poder reutilizar
+     * franjas canceladas) para garantizar que no haya citas programadas solapadas.
+     */
+    private void bloquearAgendaProfesional(Long profesionalId) {
+        disponibilidadRepository.bloquearPorProfesionalId(profesionalId);
     }
 
     // ── Validaciones de política de agendamiento ─────────────────────────────
