@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -34,6 +35,7 @@ public class DiaNoDisponibleController {
      * HU-1.8 SC-1: registra un día no disponible.
      * El sistema bloquea el agendamiento en esa fecha para todos los profesionales.
      */
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PostMapping
     public ResponseEntity<DiaNoDisponibleDTO> registrar(
             @Valid @RequestBody DiaNoDisponibleDTO dto) {
@@ -63,6 +65,7 @@ public class DiaNoDisponibleController {
     /**
      * HU-1.8 SC-3: elimina la restricción de una fecha (la habilita nuevamente).
      */
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         diaNoDisponibleService.eliminar(id);

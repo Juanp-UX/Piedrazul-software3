@@ -9,6 +9,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,14 +40,27 @@ public class CitaController {
 
     // ── Agendar ──────────────────────────────────────────────────────────────
 
+    /**
+     * Agendadores y administradores pueden agendar para cualquier paciente;
+     * un paciente solo puede agendar citas a su propio nombre.
+     */
     @PostMapping
+    @PreAuthorize("hasAnyRole('AGENDADOR','ADMINISTRADOR') "
+            + "or (hasRole('PACIENTE') and #dto.pacienteId == authentication.principal)")
     public ResponseEntity<CitaDTO> agendar(@RequestBody CitaDTO dto) {
         return ResponseEntity.ok(agendamientoFacade.agendarCita(dto));
     }
 
     // ── Consultas ─────────────────────────────────────────────────────────────
 
+    /**
+     * Solo el paciente o el profesional de la cita, un agendador o un
+     * administrador pueden consultarla (evita IDOR por id secuencial).
+     */
     @GetMapping("/{id}")
+    @PostAuthorize("hasAnyRole('AGENDADOR','ADMINISTRADOR') "
+            + "or returnObject.body.pacienteId == authentication.principal "
+            + "or returnObject.body.profesionalId == authentication.principal")
     public ResponseEntity<CitaDTO> buscarPorId(@PathVariable Long id) {
         return ResponseEntity.ok(agendamientoFacade.buscarCitaPorId(id));
     }

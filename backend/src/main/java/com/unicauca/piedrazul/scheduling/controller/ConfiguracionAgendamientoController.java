@@ -4,6 +4,7 @@ import com.unicauca.piedrazul.scheduling.dto.ConfiguracionAgendamientoDTO;
 import com.unicauca.piedrazul.scheduling.internal.application.interfaces.IConfiguracionAgendamientoService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -40,6 +41,7 @@ public class ConfiguracionAgendamientoController {
      * HU-1.7 SC-1 y SC-3: actualiza la ventana de tiempo.
      * Valida que semanasHabilitadas esté entre 1 y 52.
      */
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PutMapping
     public ResponseEntity<ConfiguracionAgendamientoDTO> actualizar(
             @Valid @RequestBody ConfiguracionAgendamientoDTO dto) {

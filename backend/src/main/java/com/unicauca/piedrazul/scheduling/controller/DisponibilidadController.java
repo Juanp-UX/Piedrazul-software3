@@ -5,6 +5,7 @@ import com.unicauca.piedrazul.scheduling.internal.application.interfaces.IDispon
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,6 +34,7 @@ public class DisponibilidadController {
      * HU-1.5 SC-1/SC-2/SC-3/SC-4: crear disponibilidad.
      * @Valid activa las validaciones de bean (campos obligatorios, rangos).
      */
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PostMapping
     public ResponseEntity<DisponibilidadSemanalDTO> crear(
             @Valid @RequestBody DisponibilidadSemanalDTO dto) {
@@ -43,6 +45,7 @@ public class DisponibilidadController {
     /**
      * HU-1.6 SC-3: actualizar disponibilidad (recalcula respetando citas futuras).
      */
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PutMapping("/{id}")
     public ResponseEntity<DisponibilidadSemanalDTO> actualizar(
             @PathVariable Long id,
@@ -62,6 +65,7 @@ public class DisponibilidadController {
     /**
      * Elimina una configuración de disponibilidad.
      */
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         disponibilidadService.eliminar(id);
