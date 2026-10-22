@@ -3,8 +3,19 @@
 # Consola de administración: http://localhost:8180  (admin / admin)
 # Realm "piedrazul": se importa solo desde ./keycloak/piedrazul-realm.json
 services:
+  # El volumen nace con dueño root y Keycloak corre como UID 1000: sin esto H2 no puede escribir.
+  keycloak-init:
+    image: busybox:1.36
+    user: root
+    command: ["chown", "-R", "1000:0", "/opt/keycloak/data/h2"]
+    volumes:
+      - keycloak-data:/opt/keycloak/data/h2
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.7
+    depends_on:
+      keycloak-init:
+        condition: service_completed_successfully
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
