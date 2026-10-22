@@ -141,9 +141,13 @@ public class KeycloakIdentityProvider implements IIdentityProvider {
         usuario.put("emailVerified", true);
         usuario.put("firstName", nombre[0]);
         usuario.put("lastName", nombre[1]);
-        if (StringUtils.hasText(cuenta.email())) {
-            usuario.put("email", cuenta.email().trim());
-        }
+        // Keycloak 26 exige email en el perfil de usuario: sin él, el login falla con
+        // "Account is not fully set up". Agendadores y profesionales no capturan email,
+        // así que se usa uno sintético derivado del login.
+        String email = StringUtils.hasText(cuenta.email())
+                ? cuenta.email().trim()
+                : cuenta.login() + "@piedrazul.local";
+        usuario.put("email", email);
         usuario.put("credentials", List.of(Map.of(
                 "type", "password",
                 "value", cuenta.password(),
