@@ -5,6 +5,7 @@ import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
 import com.unicauca.piedrazul.scheduling.dto.ConfiguracionAgendamientoDTO;
 import com.unicauca.piedrazul.scheduling.dto.DiaNoDisponibleDTO;
 import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
+import com.unicauca.piedrazul.scheduling.dto.ReporteCitasMensualDTO;
 import com.unicauca.piedrazul.scheduling.dto.DisponibilidadSemanalDTO;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
 
@@ -47,6 +48,12 @@ public interface AgendamientoFacade {
     CitaDTO cancelarCita(Long id);
 
     CitaDTO completarCita(Long id);
+
+    /** HU-2.3: cancelación de la propia cita por el paciente, con justificación. */
+    CitaDTO cancelarCitaPorPaciente(Long id, Long pacienteId, String motivo);
+
+    /** HU-5.1: reporte de citas por mes y por médico en un año. */
+    ReporteCitasMensualDTO reporteCitasPorMesYMedico(int anio);
 
     CitaDTO actualizarCita(Long id, CitaDTO dto);
 

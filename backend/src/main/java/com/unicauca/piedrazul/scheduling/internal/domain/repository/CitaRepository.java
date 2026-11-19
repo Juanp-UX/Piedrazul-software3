@@ -37,4 +37,7 @@ public interface CitaRepository extends JpaRepository<Cita, Long> {
     // tamaño de la tabla.
     // -----------------------------------------------------------------------
     long countByEstado(EstadoCita estado);
+
+    // HU-5.1: citas cuya fecha programada cae en [desde, hasta) — base del reporte anual.
+    List<Cita> findByFechaHoraGreaterThanEqualAndFechaHoraLessThan(ZonedDateTime desde, ZonedDateTime hasta);
 }

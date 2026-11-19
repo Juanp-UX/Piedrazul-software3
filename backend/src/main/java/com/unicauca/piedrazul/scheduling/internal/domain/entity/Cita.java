@@ -51,4 +51,11 @@ public class Cita {
 
     @Column(name = "creado_en")
     private ZonedDateTime creadoEn;
+
+    // HU-2.3: justificación registrada cuando el paciente cancela su cita.
+    @Column(name = "motivo_cancelacion", length = 500)
+    private String motivoCancelacion;
+
+    @Column(name = "cancelada_en")
+    private ZonedDateTime canceladaEn;
 }

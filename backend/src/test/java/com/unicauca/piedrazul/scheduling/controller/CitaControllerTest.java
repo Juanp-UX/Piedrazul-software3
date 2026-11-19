@@ -175,4 +175,44 @@ class CitaControllerTest {
                         .with(JwtAuthTestUtils.comoPaciente(5L)))
                 .andExpect(status().isOk());
     }
+
+    // ── HU-2.3: cancelación por el paciente ─────────────────────────────
+
+    @Test
+    void cancelarPorPaciente_comoPaciente_delegaConSuIdYMotivo() throws Exception {
+        given(agendamientoFacade.cancelarCitaPorPaciente(eq(1L), eq(5L), eq("Viaje")))
+                .willReturn(citaDTO(1L));
+
+        mockMvc.perform(patch("/api/scheduling/citas/1/cancelar-paciente")
+                        .with(JwtAuthTestUtils.comoPaciente(5L))
+                        .contentType("application/json")
+                        .content("{\"motivo\":\"Viaje\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void cancelarPorPaciente_comoProfesional_esRechazado() throws Exception {
+        mockMvc.perform(patch("/api/scheduling/citas/1/cancelar-paciente")
+                        .with(JwtAuthTestUtils.comoProfesional(10L))
+                        .contentType("application/json")
+                        .content("{\"motivo\":\"x\"}"))
+                .andExpect(status().isForbidden());
+        verify(agendamientoFacade, never()).cancelarCitaPorPaciente(any(), any(), any());
+    }
+
+    // ── HU-5.1: reporte mensual ─────────────────────────────────────────
+
+    @Test
+    void reporteMensual_comoProfesional_esPermitido() throws Exception {
+        mockMvc.perform(get("/api/scheduling/citas/reportes/mensual").param("anio", "2026")
+                        .with(JwtAuthTestUtils.comoProfesional(10L)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void reporteMensual_comoPaciente_esRechazado() throws Exception {
+        mockMvc.perform(get("/api/scheduling/citas/reportes/mensual").param("anio", "2026")
+                        .with(JwtAuthTestUtils.comoPaciente(5L)))
+                .andExpect(status().isForbidden());
+    }
 }

@@ -3,6 +3,7 @@ package com.unicauca.piedrazul.scheduling.internal.application.impl;
 
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
 import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
+import com.unicauca.piedrazul.scheduling.dto.ReporteCitasMensualDTO;
 import com.unicauca.piedrazul.scheduling.events.CitaAgendadaEvent;
 import com.unicauca.piedrazul.scheduling.events.CitaCanceladaEvent;
 import com.unicauca.piedrazul.scheduling.events.CitaCompletadaEvent;
@@ -24,6 +25,7 @@ import com.unicauca.piedrazul.users.dto.PacienteDTO;
 import com.unicauca.piedrazul.users.dto.UsuarioDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +37,9 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 
@@ -56,6 +60,14 @@ public class CitaServiceImpl implements ICitaService {
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter FORMATO_HORA  = DateTimeFormatter.ofPattern("HH:mm");
     private static final int MAX_LONGITUD_CEDULA = 20;
+
+    // HU-2.3: reglas de cancelación por el paciente.
+    static final int DIAS_MINIMOS_CANCELACION = 2;
+    static final int MAX_LONGITUD_MOTIVO = 500;
+
+    // HU-5.1: rango de años aceptado por el reporte.
+    private static final int ANIO_MINIMO_REPORTE = 2000;
+    private static final int ANIO_MAXIMO_REPORTE = 2100;
 
     private final CitaRepository citaRepository;
     private final DisponibilidadSemanalRepository disponibilidadRepository;
@@ -309,6 +321,97 @@ public class CitaServiceImpl implements ICitaService {
         return cancelada;
     }
 
+    // ── HU-2.3: cancelación por el paciente ───────────────────────────────────
+
+    @Override
+    @Transactional
+    public CitaDTO cancelarCitaPorPaciente(Long id, Long pacienteId, String motivo) {
+        Cita cita = citaRepository.findById(id)
+                .orElseThrow(() -> new CitaNoEncontradaException(id.toString()));
+
+        // Un paciente solo puede cancelar sus propias citas (evita IDOR por id secuencial).
+        if (pacienteId == null || !pacienteId.equals(cita.getPacienteId())) {
+            throw new AccessDeniedException("No puedes cancelar una cita que no es tuya.");
+        }
+
+        // SC-4: la justificación es obligatoria.
+        String justificacion = motivo == null ? "" : motivo.trim();
+        if (justificacion.isEmpty()) {
+            throw new IllegalArgumentException("Debes ingresar la justificación de la cancelación.");
+        }
+        if (justificacion.length() > MAX_LONGITUD_MOTIVO) {
+            throw new IllegalArgumentException(
+                    "La justificación no puede superar los " + MAX_LONGITUD_MOTIVO + " caracteres.");
+        }
+
+        // Solo citas activas (programadas): las canceladas/completadas lanzan transición inválida.
+        if (cita.getEstado() == EstadoCita.programada) {
+            // SC-3: anticipación mínima de dos días respecto a la fecha de la cita.
+            ZonedDateTime limite = cita.getFechaHora().minusDays(DIAS_MINIMOS_CANCELACION);
+            if (ZonedDateTime.now(ZONA_NEGOCIO).isAfter(limite)) {
+                throw new CancelacionFueraDePlazoException(DIAS_MINIMOS_CANCELACION);
+            }
+        }
+
+        // SC-6/SC-7: cambia a cancelada; el horario queda libre porque la
+        // disponibilidad solo considera citas en estado programada.
+        estadoResolver.resolve(cita.getEstado()).cancelar(cita);
+        cita.setMotivoCancelacion(justificacion);
+        cita.setCanceladaEn(ZonedDateTime.now(ZONA_NEGOCIO));
+        CitaDTO cancelada = toDTO(citaRepository.save(cita));
+        events.publishEvent(new CitaCanceladaEvent(
+                cancelada.getId(), cancelada.getPacienteId(),
+                cancelada.getProfesionalId(), cancelada.getFechaHora()));
+        log.info("Cita cancelada por el paciente: id={} paciente={}", id, pacienteId);
+        return cancelada;
+    }
+
+    // ── HU-5.1: reporte de citas por mes y por médico ─────────────────────────
+
+    @Override
+    public ReporteCitasMensualDTO reporteCitasPorMesYMedico(int anio) {
+        if (anio < ANIO_MINIMO_REPORTE || anio > ANIO_MAXIMO_REPORTE) {
+            throw new IllegalArgumentException("El año debe estar entre "
+                    + ANIO_MINIMO_REPORTE + " y " + ANIO_MAXIMO_REPORTE + ".");
+        }
+        ZonedDateTime desde = LocalDate.of(anio, 1, 1).atStartOfDay(ZONA_NEGOCIO);
+        ZonedDateTime hasta = desde.plusYears(1);
+
+        List<Cita> citas = citaRepository
+                .findByFechaHoraGreaterThanEqualAndFechaHoraLessThan(desde, hasta);
+
+        // Agrupa por médico (conservando el orden alfabético) y por mes en hora de Bogotá.
+        Map<Long, ReporteCitasMensualDTO.SerieMedico> porMedico = new LinkedHashMap<>();
+        Map<Long, long[]> conteos = new LinkedHashMap<>();
+        citas.stream()
+                .sorted(Comparator.comparing(Cita::getProfesionalNombre, String.CASE_INSENSITIVE_ORDER))
+                .forEach(c -> {
+                    long[] meses = conteos.computeIfAbsent(c.getProfesionalId(), k -> new long[12]);
+                    porMedico.putIfAbsent(c.getProfesionalId(), ReporteCitasMensualDTO.SerieMedico.builder()
+                            .profesionalId(c.getProfesionalId())
+                            .profesionalNombre(c.getProfesionalNombre())
+                            .build());
+                    meses[c.getFechaHora().withZoneSameInstant(ZONA_NEGOCIO).getMonthValue() - 1]++;
+                });
+
+        List<ReporteCitasMensualDTO.SerieMedico> series = new ArrayList<>();
+        porMedico.forEach((id, serie) -> {
+            long[] meses = conteos.get(id);
+            List<Long> lista = new ArrayList<>(12);
+            long total = 0;
+            for (long m : meses) { lista.add(m); total += m; }
+            serie.setCitasPorMes(lista);
+            serie.setTotal(total);
+            series.add(serie);
+        });
+
+        return ReporteCitasMensualDTO.builder()
+                .anio(anio)
+                .totalCitas(citas.size())
+                .series(series)
+                .build();
+    }
+
     @Override
     @Transactional
     public CitaDTO completarCita(Long id) {
@@ -550,6 +653,7 @@ public class CitaServiceImpl implements ICitaService {
                 .profesionalNombre(c.getProfesionalNombre())
                 .fechaHora(c.getFechaHora())
                 .estado(c.getEstado())
+                .motivoCancelacion(c.getMotivoCancelacion())
                 .build();
     }
 }

@@ -1,7 +1,9 @@
 package com.unicauca.piedrazul.scheduling.controller;
 
 import com.unicauca.piedrazul.scheduling.AgendamientoFacade;
+import com.unicauca.piedrazul.scheduling.dto.CancelarCitaRequest;
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
+import com.unicauca.piedrazul.scheduling.dto.ReporteCitasMensualDTO;
 import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -11,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
@@ -145,6 +148,21 @@ public class CitaController {
         return ResponseEntity.ok(agendamientoFacade.cancelarCita(id));
     }
 
+    /**
+     * HU-2.3: el paciente cancela una cita propia indicando la justificación.
+     * La propiedad de la cita y la anticipación mínima se validan en el servicio.
+     */
+    @PatchMapping("/{id}/cancelar-paciente")
+    @PreAuthorize("hasRole('PACIENTE')")
+    public ResponseEntity<CitaDTO> cancelarPorPaciente(
+            @PathVariable Long id,
+            @RequestBody(required = false) CancelarCitaRequest request,
+            Authentication authentication) {
+        Long pacienteId = (Long) authentication.getPrincipal();
+        String motivo = request != null ? request.getMotivo() : null;
+        return ResponseEntity.ok(agendamientoFacade.cancelarCitaPorPaciente(id, pacienteId, motivo));
+    }
+
     @PatchMapping("/{id}/completar")
     @PreAuthorize("hasAnyRole('AGENDADOR','ADMINISTRADOR')")
     public ResponseEntity<CitaDTO> completar(@PathVariable Long id) {
@@ -157,6 +175,15 @@ public class CitaController {
             @PathVariable Long id,
             @RequestBody CitaDTO dto) {
         return ResponseEntity.ok(agendamientoFacade.actualizarCita(id, dto));
+    }
+
+    // ── Reportes ──────────────────────────────────────────────────────────────
+
+    /** HU-5.1: cantidad de citas por mes y por médico en un año (médico/terapista y administrador). */
+    @GetMapping("/reportes/mensual")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMINISTRADOR')")
+    public ResponseEntity<ReporteCitasMensualDTO> reporteMensual(@RequestParam int anio) {
+        return ResponseEntity.ok(agendamientoFacade.reporteCitasPorMesYMedico(anio));
     }
 
     // ── Conteo ────────────────────────────────────────────────────────────────

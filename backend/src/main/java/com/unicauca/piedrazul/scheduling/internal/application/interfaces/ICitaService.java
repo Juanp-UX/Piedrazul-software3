@@ -3,6 +3,7 @@ package com.unicauca.piedrazul.scheduling.internal.application.interfaces;
 
 import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
 import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
+import com.unicauca.piedrazul.scheduling.dto.ReporteCitasMensualDTO;
 import com.unicauca.piedrazul.scheduling.internal.domain.entity.enums.EstadoCita;
 
 import java.time.LocalDate;
@@ -27,6 +28,12 @@ public interface ICitaService {
     List<ZonedDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha);
     CitaDTO cancelarCita(Long id);
     CitaDTO completarCita(Long id);
+
+    /** HU-2.3: el paciente cancela su propia cita (anticipación mínima + justificación obligatoria). */
+    CitaDTO cancelarCitaPorPaciente(Long id, Long pacienteId, String motivo);
+
+    /** HU-5.1: cantidad de citas por mes y por médico en el año indicado. */
+    ReporteCitasMensualDTO reporteCitasPorMesYMedico(int anio);
 
     // HU-6.3: reprogramar una cita existente
     CitaDTO actualizarCita(Long id, CitaDTO dto);

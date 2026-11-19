@@ -2,6 +2,7 @@ package com.unicauca.piedrazul.shared;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -22,6 +23,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(AuthorizationDeniedException.class)
     public ResponseEntity<ApiError> handleAuthorizationDenied(AuthorizationDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiError(HttpStatus.FORBIDDEN.value(),
+                        "Acceso denegado", "No tiene permisos para realizar esta operación"));
+    }
+
+    /** Denegaciones lanzadas desde la capa de servicio (p. ej. cancelar una cita ajena). */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new ApiError(HttpStatus.FORBIDDEN.value(),
                         "Acceso denegado", "No tiene permisos para realizar esta operación"));

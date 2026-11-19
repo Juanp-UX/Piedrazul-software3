@@ -1,5 +1,6 @@
 package com.unicauca.piedrazul.scheduling.internal.config;
 
+import com.unicauca.piedrazul.scheduling.internal.domain.exceptions.CancelacionFueraDePlazoException;
 import com.unicauca.piedrazul.scheduling.internal.domain.exceptions.CitaNoEncontradaException;
 import com.unicauca.piedrazul.scheduling.internal.domain.exceptions.ConfiguracionInvalidaException;
 import com.unicauca.piedrazul.scheduling.internal.domain.exceptions.FechaNoDisponibleException;
@@ -56,6 +57,13 @@ public class SchedulingExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(new ApiError(HttpStatus.UNPROCESSABLE_ENTITY.value(),
                         "Fecha fuera del rango de agendamiento", ex.getMessage()));
+    }
+
+    @ExceptionHandler(CancelacionFueraDePlazoException.class)
+    public ResponseEntity<ApiError> handleCancelacionFueraDePlazo(CancelacionFueraDePlazoException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(new ApiError(HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                        "Cancelación no permitida", ex.getMessage()));
     }
 
     @ExceptionHandler(FechaNoDisponibleException.class)

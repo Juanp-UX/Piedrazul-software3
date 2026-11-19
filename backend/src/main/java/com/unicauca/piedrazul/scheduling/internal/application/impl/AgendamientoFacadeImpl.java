@@ -5,6 +5,7 @@ import com.unicauca.piedrazul.scheduling.dto.CitaDTO;
 import com.unicauca.piedrazul.scheduling.dto.ConfiguracionAgendamientoDTO;
 import com.unicauca.piedrazul.scheduling.dto.DiaNoDisponibleDTO;
 import com.unicauca.piedrazul.scheduling.dto.HistorialCitasPacienteDTO;
+import com.unicauca.piedrazul.scheduling.dto.ReporteCitasMensualDTO;
 import com.unicauca.piedrazul.scheduling.dto.DisponibilidadSemanalDTO;
 import com.unicauca.piedrazul.scheduling.internal.application.interfaces.ICitaService;
 import com.unicauca.piedrazul.scheduling.internal.application.interfaces.IConfiguracionAgendamientoService;
@@ -99,6 +100,16 @@ public class AgendamientoFacadeImpl implements AgendamientoFacade {
     @Override
     public CitaDTO cancelarCita(Long id) {
         return citaService.cancelarCita(id);
+    }
+
+    @Override
+    public CitaDTO cancelarCitaPorPaciente(Long id, Long pacienteId, String motivo) {
+        return citaService.cancelarCitaPorPaciente(id, pacienteId, motivo);
+    }
+
+    @Override
+    public ReporteCitasMensualDTO reporteCitasPorMesYMedico(int anio) {
+        return citaService.reporteCitasPorMesYMedico(anio);
     }
 
     @Override
